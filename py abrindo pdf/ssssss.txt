@@ -1,0 +1,142 @@
+import sys
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QIcon, QPainter, QFont, QPixmap, QColor
+from PyQt5.QtWidgets import QApplication, QMainWindow, QToolBar, QAction
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineSettings  # Importação corrigida
+
+class NavegadorWeb(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("SOFTWARE PCB-AGRO")
+        self.setGeometry(100, 100, 800, 600)
+
+        self.setWindowIcon(self.createTextIcon("AG", QColor("#4267b2")))
+
+        # Estilização
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #3b8f40;  
+                color: white;  
+                border: 1px solid black;  
+            }
+            QToolBar {
+                background-color: #3b8f40;  
+                color: white;  
+                border: none;
+            }
+            QToolBar::separator {
+                background-color: white;  
+                width: 1px;
+                margin: 0 5px;
+            }
+            QToolButton {
+                background-color: transparent;
+                border: 1px solid black;  
+                padding: 5px;
+                color: white;  
+            }
+            QToolButton:hover {
+                background-color: #4267b2;  
+            }
+            QToolButton:pressed {
+                background-color: #29487d;  
+            }
+        """)
+
+        # Barra de ferramentas
+        self.nav_bar = QToolBar()
+        self.addToolBar(self.nav_bar)
+
+        self.btn_voltar = QAction('VOLTAR', self)
+        self.btn_avancar = QAction('AVANÇAR', self)
+        self.btn_atualizar = QAction('ATUALIZAR', self)
+        self.btn_duplicar = QAction('DUPLICAR', self)
+
+        for btn in [self.btn_voltar, self.btn_avancar, self.btn_atualizar, self.btn_duplicar]:
+            btn.triggered.connect(self.on_button_clicked)
+            self.nav_bar.addAction(btn)
+
+        # Visualizador Web
+        self.webview = QWebEngineView()
+
+        # Configurações para suporte a PDF e ajustes de renderização
+        settings = self.webview.settings()
+        settings.setAttribute(QWebEngineSettings.PluginsEnabled, True)
+        settings.setAttribute(QWebEngineSettings.PdfViewerEnabled, True)
+        settings.setAttribute(QWebEngineSettings.WebGLEnabled, False)  # Desabilitar WebGL
+        settings.setAttribute(QWebEngineSettings.Accelerated2dCanvasEnabled, False)  # Desabilitar aceleração de 2D
+
+        self.setCentralWidget(self.webview)
+        self.webview.load(QUrl("http://agropbc.weebly.com"))
+        self.webview.loadFinished.connect(self.injetar_script_impressao)
+
+        self.janela_flutuante = None
+
+    def on_button_clicked(self):
+        action = self.sender()
+        if action == self.btn_voltar:
+            self.webview.page().triggerAction(QWebEnginePage.Back)
+        elif action == self.btn_avancar:
+            self.webview.page().triggerAction(QWebEnginePage.Forward)
+        elif action == self.btn_atualizar:
+            self.webview.page().triggerAction(QWebEnginePage.Reload)
+        elif action == self.btn_duplicar:
+            self.abrir_janela_flutuante()
+
+    def injetar_script_impressao(self):
+        script = """
+        document.addEventListener('DOMContentLoaded', function() {
+            var btnImprimir = document.querySelector('#botao-imprimir'); // Substitua pelo seletor correto
+            if (btnImprimir) {
+                btnImprimir.addEventListener('click', function() {
+                    window.print();
+                });
+            }
+        });
+        """
+        self.webview.page().runJavaScript(script)
+
+    def abrir_janela_flutuante(self):
+        if not self.janela_flutuante or not self.janela_flutuante.isVisible():
+            url_atual = self.webview.url()
+            self.janela_flutuante = Duplicar(url_atual, self)
+            self.janela_flutuante.show()
+
+    def createTextIcon(self, text, color):
+        pixmap = self.renderText(text, color)
+        return QIcon(pixmap)
+
+    def renderText(self, text, color):
+        pixmapSize = 32
+        pixmap = QPixmap(pixmapSize, pixmapSize)
+        pixmap.fill(Qt.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        font = QFont("Arial", 16)
+        painter.setFont(font)
+        painter.setPen(color)
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, text)
+
+        painter.end()
+        return pixmap
+
+
+class Duplicar(QMainWindow):
+    def __init__(self, url, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("DUPLICAR")
+        self.setGeometry(200, 200, 800, 600)
+
+        self.webview = QWebEngineView()
+        self.setCentralWidget(self.webview)
+        self.webview.load(url)
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    navegador = NavegadorWeb()
+    navegador.show()
+    sys.exit(app.exec_())
